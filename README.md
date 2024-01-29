@@ -5,7 +5,7 @@ A lightweight simple tcp chat server
 
 - Start the server
 ```bash
-go run main.go
+go run .
 ```
 
 - connect to the server from multiple terminals (multiple clients)
@@ -35,3 +35,7 @@ nc localhost 8080
   ```
   /quit
   ```
+
+#### Screens
+
+![client connections](/Users/shameer/Documents/Personal/ComputerScience/General/Projects/Golang/projects/simple-chat/assets/client-screens.png)
