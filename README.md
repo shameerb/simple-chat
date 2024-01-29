@@ -38,4 +38,5 @@ nc localhost 8080
 
 #### Screens
 
-![client connections](/Users/shameer/Documents/Personal/ComputerScience/General/Projects/Golang/projects/simple-chat/assets/client-screens.png)
+![client connections](assets/client-screens.png)
+
