@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package grpcapi;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/shameerb/tcp-chat-redis/pkg/grpcapi";
+
+service ChatService {
+    rpc Connect (ConnectRequest) returns (google.protobuf.Empty);
+
+    // List all active users (bidirectional)
+    rpc Chat (Message) returns (google.protobuf.Empty);
+
+    // List all active users (unary)
+    rpc ListUsers (google.protobuf.Empty) returns (UserListResponse);
+
+    // Disconnect the connection (unary)
+    rpc Disconnect (DisconnectRequest) returns (google.protobuf.Empty);
+    
+}
+
+message ConnectRequest {
+    string user = 1;
+}
+
+message UserListResponse {
+    repeated string user = 1;
+}
+
+message Message {
+    string user = 1;
+    string msg = 2;
+}
+
+message DisconnectRequest {
+    string user = 1;
+}

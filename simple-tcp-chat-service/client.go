@@ -17,8 +17,9 @@ type client struct {
 
 // todo: stop reading from the conn after quit.
 func (c *client) readInput() {
+	r := bufio.NewReader(c.conn)
 	for {
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
+		msg, err := r.ReadString('\n')
 		if err != nil {
 			log.Printf("failed to read message from %s: %s", c.conn.RemoteAddr(), err)
 			return
