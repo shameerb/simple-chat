@@ -3,11 +3,11 @@ package client
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"io"
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/go-redis/redis"
@@ -21,21 +21,21 @@ import (
 // you will have 3 go routines. 1-> listen to commands from user stdio,  2-> listen to messages from redis, 3 -> select waiting for ctx done, messages or listen chan.
 
 type Client struct {
-	redisAddr           string
-	redis               *redis.Client
-	pubsub              *redis.PubSub
-	serverAddr          string
-	chatServerConn      *grpc.ClientConn
-	chatServerClient    pb.ChatServiceClient
-	ctx                 context.Context
-	cancel              context.CancelFunc
-	grpcCtx             context.Context
-	grpcCtxCancel       context.CancelFunc
+	redisAddr        string
+	redis            *redis.Client
+	pubsub           *redis.PubSub
+	serverAddr       string
+	chatServerConn   *grpc.ClientConn
+	chatServerClient pb.ChatServiceClient
+	ctx              context.Context
+	cancel           context.CancelFunc
+	grpcCtx          context.Context
+	// grpcCtxCancel       context.CancelFunc
 	redisMessageChannel chan string
 	rcvChannel          chan string
 	user                string
 	writer              io.Writer
-	// wg               sync.WaitGroup
+	wg                  sync.WaitGroup
 }
 
 func NewClient(redisAddr, serverAddr, user string) *Client {
@@ -52,7 +52,7 @@ func NewClient(redisAddr, serverAddr, user string) *Client {
 	}
 }
 
-func (c *Client) Init() error {
+func (c *Client) Run() error {
 	var err error
 	// initialize redis
 	c.redis = redis.NewClient(&redis.Options{
@@ -70,8 +70,9 @@ func (c *Client) Init() error {
 	c.pubsub = c.redis.Subscribe(common.CHANNEL)
 	log.Printf("listening to redis on %s", c.redisAddr)
 
-	c.grpcCtx, c.grpcCtxCancel = context.WithCancel(context.Background())
-	defer c.grpcCtxCancel()
+	c.grpcCtx, _ = context.WithCancel(context.Background())
+	// defer c.grpcCtxCancel()
+	// c.grpcCtx = c.ctx
 	c.chatServerConn, err = grpc.DialContext(c.grpcCtx, c.serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
 	log.Println("connected to grpc server ...")
 	if err != nil {
@@ -97,32 +98,36 @@ func (c *Client) Init() error {
 }
 
 func (c *Client) listenInputMessage(scanner *bufio.Scanner) {
-	// todo: // exit the scanning when you get a context done on an interrupt.
+	c.wg.Add(1)
+	defer c.wg.Done()
 	for {
 		select {
 		case <-c.ctx.Done():
+			log.Println("context cancel, exiting listen input message")
 			return
 		default:
+			// this will block the goroutine, even if a ctx done has been sent.
+			// todo: The problem with this is that it gets stuck on receiveMessage and doesnt loop back to the ctx.Done until you send a new message
+			log.Println("Waiting for message ...")
 			scanner.Scan()
-			fmt.Println("Reading message ...")
+			log.Println("Reading message ...")
 			input_msg := scanner.Text()
 			c.rcvChannel <- input_msg
 		}
 	}
-	// for scanner.Scan() {
-	// 	fmt.Println("Reading message ...")
-	// 	input_msg := scanner.Text()
-	// 	c.rcvChannel <- input_msg
-	// }
 }
 
 func (c *Client) listenRedisMessage() {
-	// DONE: read a context done as well to exit the reading when you get an interrupt.
+	c.wg.Add(1)
+	defer c.wg.Done()
 	for {
 		select {
 		case <-c.ctx.Done():
+			log.Println("context cancel, exiting redis listen message")
 			return
 		default:
+			// todo: The problem with this is that it gets stuck on receiveMessage and doesnt loop back to the ctx.Done until you send a new message
+			log.Println("reading redis message")
 			msg, err := c.pubsub.ReceiveMessage()
 			if err != nil {
 				log.Fatalf("error listening to message on redis: %s", err)
@@ -133,14 +138,14 @@ func (c *Client) listenRedisMessage() {
 }
 
 func (c *Client) process() {
-	// c.wg.Add(1)
-	// defer c.wg.Done()
+	c.wg.Add(1)
+	defer c.wg.Done()
 	for {
 		select {
 		case <-c.ctx.Done():
+			log.Println("context cancel, exiting process message")
 			return
 		case msg := <-c.rcvChannel:
-			fmt.Println("got a message on redis channel")
 			req := &pb.Message{
 				User: c.user,
 				Msg:  msg,
@@ -157,7 +162,6 @@ func (c *Client) process() {
 }
 
 func (c *Client) initUser(scanner *bufio.Scanner) {
-
 	for {
 		c.write("> Enter a username: ")
 		scanner.Scan()
@@ -196,12 +200,10 @@ func (c *Client) disconnect() {
 
 func (c *Client) stop() {
 	log.Println("Stopping client service..")
-	// call cancel for the context
 	c.cancel()
-	// ideally wait for the goroutines to finish.
-	// c.wg.Done()
+	c.wg.Wait()
 	c.disconnect()
-	// call the c.grpcCtxCancel
+	// wait for pending messages to be processed before closing all connections.
 	c.chatServerConn.Close()
 	c.redis.Close()
 }

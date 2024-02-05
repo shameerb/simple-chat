@@ -37,7 +37,7 @@ func NewServer(redisAddr, grpcPort string) *Server {
 	}
 }
 
-func (s *Server) Init() error {
+func (s *Server) Run() error {
 	var err error
 	s.redis, err = initRedis(s.redisAddr)
 	if err != nil {

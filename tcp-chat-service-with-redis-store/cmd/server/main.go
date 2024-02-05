@@ -14,7 +14,7 @@ var (
 
 func main() {
 	c := server.NewServer(*redisAddr, *grpcPort)
-	if err := c.Init(); err != nil {
+	if err := c.Run(); err != nil {
 		log.Fatalf("failed to start the server: %s", err)
 	}
 }

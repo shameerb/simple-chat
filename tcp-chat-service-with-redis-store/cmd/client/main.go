@@ -15,7 +15,7 @@ var (
 
 func main() {
 	c := client.NewClient(*redisAddr, *serverAddr, *user)
-	if err := c.Init(); err != nil {
+	if err := c.Run(); err != nil {
 		log.Fatalf("failed to start the client: %s", err)
 	}
 }
