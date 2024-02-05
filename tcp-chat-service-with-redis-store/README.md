@@ -14,4 +14,7 @@ Learn to build a TCP chat service using Redis Pub-Sub, gRPC, Go.
 
 
 ### Changes required
+- when a user exists, call the disconnect rpc call.
+    - server should have an active connection (heartbeat system) to check for idle users.
+    - Also, the server can end the connection as well if required.
 - interface to change the storage layer. 
