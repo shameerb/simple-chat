@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -112,28 +113,35 @@ func (c *Client) listenInputMessage(scanner *bufio.Scanner) {
 			scanner.Scan()
 			log.Println("Reading message ...")
 			input_msg := scanner.Text()
+			log.Println("mssage " + input_msg)
+			if strings.Contains(input_msg, "#quit") {
+				log.Println("Exiting scanner goroutine")
+				return
+			}
 			c.rcvChannel <- input_msg
 		}
 	}
 }
 
 func (c *Client) listenRedisMessage() {
-	c.wg.Add(1)
-	defer c.wg.Done()
+	// c.wg.Add(1)
+	// defer c.wg.Done()
+	// todo: The context cancel wont work here because the ReceiveMessage entirely blocks and doesnt proceed to the ctx.Done statement until a new message comes in.
+
 	for {
-		select {
-		case <-c.ctx.Done():
-			log.Println("context cancel, exiting redis listen message")
-			return
-		default:
-			// todo: The problem with this is that it gets stuck on receiveMessage and doesnt loop back to the ctx.Done until you send a new message
-			log.Println("reading redis message")
-			msg, err := c.pubsub.ReceiveMessage()
-			if err != nil {
-				log.Fatalf("error listening to message on redis: %s", err)
-			}
-			c.redisMessageChannel <- msg.Payload
+		// select {
+		// case <-c.ctx.Done():
+		// 	log.Println("context cancel, exiting redis listen message")
+		// 	return
+		// default:
+		// todo: The problem with this is that it gets stuck on receiveMessage and doesnt loop back to the ctx.Done until you send a new message
+		log.Println("reading redis message")
+		msg, err := c.pubsub.ReceiveMessage()
+		if err != nil {
+			log.Fatalf("error listening to message on redis: %s", err)
 		}
+		c.redisMessageChannel <- msg.Payload
+		// }
 	}
 }
 
@@ -201,6 +209,7 @@ func (c *Client) disconnect() {
 func (c *Client) stop() {
 	log.Println("Stopping client service..")
 	c.cancel()
+	os.Stdout.Write([]byte("#quit"))
 	c.wg.Wait()
 	c.disconnect()
 	// wait for pending messages to be processed before closing all connections.
